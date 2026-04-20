@@ -1,0 +1,3 @@
+kubernetes_version: "1.29"
+pod_network_cidr: "10.244.0.0/16"
+master_private_ip: "10.0.1.10"

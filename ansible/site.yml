@@ -1,0 +1,19 @@
+---
+- name: Préparation commune de tous les noeuds
+  hosts: all
+  become: true
+  roles:
+    - common
+    - k8s_common
+
+- name: Initialisation du master Kubernetes
+  hosts: k8s_master
+  become: true
+  roles:
+    - k8s_master
+
+- name: Jonction des workers au cluster
+  hosts: k8s_workers
+  become: true
+  roles:
+    - k8s_worker

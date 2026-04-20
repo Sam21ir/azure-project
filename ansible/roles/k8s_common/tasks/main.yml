@@ -1,0 +1,67 @@
+---
+# ─── Containerd ───────────────────────────────────────────────────────────────
+
+- name: Ajout du repo Docker (pour containerd)
+  get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+
+- name: Installation de containerd
+  dnf:
+    name: containerd.io
+    state: present
+
+- name: Création du répertoire de config containerd
+  file:
+    path: /etc/containerd
+    state: directory
+
+- name: Génération de la config containerd par défaut
+  shell: containerd config default > /etc/containerd/config.toml
+
+- name: Suppression de disabled_plugins (désactive le CRI)
+  lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: '^\s*disabled_plugins\s*='
+    state: absent
+
+- name: Activation de SystemdCgroup dans containerd
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+
+- name: Démarrage et activation de containerd
+  systemd:
+    name: containerd
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+# ─── Kubernetes packages ──────────────────────────────────────────────────────
+
+- name: Ajout du repo Kubernetes
+  copy:
+    dest: /etc/yum.repos.d/kubernetes.repo
+    content: |
+      [kubernetes]
+      name=Kubernetes
+      baseurl=https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/rpm/
+      enabled=1
+      gpgcheck=1
+      gpgkey=https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/rpm/repodata/repomd.xml.key
+
+- name: Installation de kubeadm, kubelet, kubectl
+  dnf:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+    disable_excludes: kubernetes
+
+- name: Activation de kubelet
+  systemd:
+    name: kubelet
+    enabled: true
+    state: started

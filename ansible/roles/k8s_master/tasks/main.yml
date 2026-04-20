@@ -1,0 +1,46 @@
+---
+- name: Vérification si le cluster est déjà initialisé
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_init_done
+
+- name: Initialisation du cluster avec kubeadm
+  command: >
+    kubeadm init
+    --pod-network-cidr={{ pod_network_cidr }}
+    --apiserver-advertise-address={{ master_private_ip }}
+  when: not kubeadm_init_done.stat.exists
+  register: kubeadm_init_output
+
+- name: Création du répertoire .kube pour azureuser
+  file:
+    path: /home/azureuser/.kube
+    state: directory
+    owner: azureuser
+    group: azureuser
+    mode: '0755'
+
+- name: Copie du kubeconfig admin
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/azureuser/.kube/config
+    remote_src: true
+    owner: azureuser
+    group: azureuser
+    mode: '0600'
+
+- name: Installation du CNI Flannel
+  become_user: azureuser
+  command: kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+  environment:
+    KUBECONFIG: /home/azureuser/.kube/config
+  register: flannel_result
+  changed_when: "'created' in flannel_result.stdout or 'configured' in flannel_result.stdout"
+
+- name: Génération de la commande join
+  command: kubeadm token create --print-join-command
+  register: join_command_raw
+
+- name: Sauvegarde de la commande join comme fact global
+  set_fact:
+    k8s_join_command: "{{ join_command_raw.stdout }}"
